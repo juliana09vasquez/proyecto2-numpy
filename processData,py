@@ -1,0 +1,110 @@
+import sys
+import requests
+import pandas as pd
+
+class CustomException(Exception):
+    pass
+
+class DataProcessor:
+    def __init__(self, filename):
+        self.df = pd.read_csv(filename)
+
+    def get_age_category(self, age) -> str:
+        age_categories = {
+            (0, 12): 'Niño',
+            (13, 19): 'Adolescente',
+            (20, 39): 'Joven adulto',
+            (40, 59): 'Adulto',
+            (60, float('inf')): 'Adulto mayor'
+        }
+
+        for age_range, category in age_categories.items():
+            if age_range[0] <= age <= age_range[1]:
+                return category
+
+    def get_diabetes_category(self, diabetes):
+        has_diabetes ={
+            1 : 'Diabetico',
+            0 : 'No diabetico'
+        }
+        for diabetico, category in has_diabetes.items():
+            if diabetico == diabetes:
+                return category
+
+
+    def get_anaemia_category(self, anaemia):
+        has_anaemia ={
+            1 : 'Anemico',
+            0 : 'sin Anemia'
+        }
+        for anemico, category in has_anaemia.items():
+            if anemico == anaemia:
+                return category
+
+
+    def remove_outliers(self, column: str, threshold: float = 1.5) -> None:
+        Q1 = self.df[column].quantile(0.25)
+        Q3 = self.df[column].quantile(0.75)
+        IQR = Q3 - Q1
+
+        self.df = self.df[~((self.df[column] < (Q1 - threshold * IQR)) | (self.df[column] > (Q3 + threshold * IQR)))]
+
+    def clean_and_prepare(self) -> None:
+        #print(f"Valores faltantes por columna: \n{self.df.isnull().sum()}")
+        #print(f"Valores duplicados: {self.df.duplicated().sum()}")
+        self.remove_outliers('age')
+        self.remove_outliers('creatinine_phosphokinase')        
+        self.remove_outliers('platelets')
+
+        self.df = self.df.sort_values('age', ascending=True)
+
+        self.df['age_category'] = self.df['age'].apply(self.get_age_category)
+        self.df['anaemia_category'] = self.df['anaemia'].apply(self.get_anaemia_category)
+        self.df['diabetes_category'] = self.df['diabetes'].apply(self.get_diabetes_category)
+
+        self.df.to_csv('cleaned_data.csv', index=True)
+
+    def get_processed_data(self) -> pd.DataFrame:
+        return self.df
+
+def download_csv(url, filename):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        status_code = response.status_code
+        if status_code == requests.codes.ok:
+            with open(filename, 'wb') as f:
+                f.write(response.content)
+            print('Descarga finalizada')
+    except requests.exceptions.HTTPError as e:
+        print(f'HTTP Error occurred: {str(e)}')
+    except requests.exceptions.RequestException as e:
+        print(f'Request Error occurred: {str(e)}')
+    except ValueError as e:
+        print(f'Value Error occurred: {str(e)}')
+
+def main():
+    if len(sys.argv) != 2:
+        print("Uso: python processData.py <URL>")
+        sys.exit(1)
+
+    url = sys.argv[1]
+    csv_filename = 'data.csv'
+
+    # Descargar el archivo CSV
+    download_csv(url, csv_filename)
+
+    # Procesar y limpiar los datos
+    data_processor = DataProcessor(csv_filename)
+    data_processor.clean_and_prepare()
+    processed_data = data_processor.get_processed_data()
+
+    #TODO: Mostrar el DataFrame procesado
+    print(processed_data)
+
+    # Exportar el DataFrame procesado a un nuevo CSV
+    processed_data.to_csv('cleaned_data.csv', index=True)
+    print('CSV limpio exportado como cleaned_data.csv')
+
+if __name__ == "__main__":
+    main()

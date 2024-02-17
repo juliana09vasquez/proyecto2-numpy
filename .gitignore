@@ -1,0 +1,9 @@
+#ignorar carpeta pychache
+__pycache__/
+#ignorar archivos csv
+*.csv
+#carpeta pytest-cache
+__.pytest_cache__/
+
+#imagenes
+*.png
